@@ -6,7 +6,7 @@ import { toast } from 'react-toastify'
 import './Auth.css'
 
 export default function Signup() {
-  const { login, BASE } = useContext(AuthContext)
+  const { registerUser } = useContext(AuthContext)
   const navigate = useNavigate()
   const [form, setForm]     = useState({ name: '', email: '', password: '' })
   const [error, setError]   = useState('')
@@ -17,25 +17,20 @@ export default function Signup() {
     if (form.password.length < 6) { setError('Password must be at least 6 characters.'); return }
     setLoading(true); setError('')
     try {
-      const res  = await fetch(`${BASE}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: form.name, email: form.email, password: form.password })
-      })
-      const data = await res.json()
-      if (!res.ok) { 
-        setError(data.error || 'Signup failed.')
-        toast.error(data.error || 'Signup failed.')
-        return 
+      const { data, error: err } = await registerUser(form.name, form.email, form.password)
+      if (err) {
+        setError(err)
+        toast.error(err)
+        return
       }
-      login(data.token, data.user)
-      toast.success('Account created successfully!')
+      toast.success(`Welcome, ${data.user?.name?.split(' ')[0] || ''}! Account created successfully.`)
       navigate('/')
-    } catch { 
-      setError('Cannot connect to server.') 
-      toast.error('Cannot connect to server.')
+    } catch {
+      setError('An error occurred during account creation.')
+      toast.error('An error occurred during account creation.')
+    } finally {
+      setLoading(false)
     }
-    finally  { setLoading(false) }
   }
 
   return (

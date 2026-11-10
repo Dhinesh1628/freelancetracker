@@ -6,7 +6,7 @@ import { toast } from 'react-toastify'
 import './Auth.css'
 
 export default function Login() {
-  const { login, BASE } = useContext(AuthContext)
+  const { loginUser } = useContext(AuthContext)
   const navigate = useNavigate()
   const [form, setForm]     = useState({ email: '', password: '' })
   const [error, setError]   = useState('')
@@ -16,25 +16,20 @@ export default function Login() {
     if (!form.email.trim() || !form.password.trim()) { setError('Please fill in all fields.'); return }
     setLoading(true); setError('')
     try {
-      const res  = await fetch(`${BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email, password: form.password })
-      })
-      const data = await res.json()
-      if (!res.ok) { 
-        setError(data.error || 'Login failed.')
-        toast.error(data.error || 'Login failed.')
-        return 
+      const { data, error: err } = await loginUser(form.email, form.password)
+      if (err) {
+        setError(err)
+        toast.error(err)
+        return
       }
-      login(data.token, data.user)
       toast.success(`Welcome back, ${data.user?.name?.split(' ')[0] || ''}!`)
       navigate('/')
-    } catch { 
-      setError('Cannot connect to server.') 
-      toast.error('Cannot connect to server.')
+    } catch {
+      setError('An error occurred during sign in.')
+      toast.error('An error occurred during sign in.')
+    } finally {
+      setLoading(false)
     }
-    finally  { setLoading(false) }
   }
 
   return (
