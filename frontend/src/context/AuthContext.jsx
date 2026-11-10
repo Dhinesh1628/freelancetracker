@@ -1,9 +1,11 @@
-import { createContext, useState, useContext } from 'react'
+import { createContext, useState, useContext, useCallback } from 'react'
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext()
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext)
 
-const BASE = 'http://localhost:5000'
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 export default function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem('token') || null)
@@ -26,7 +28,7 @@ export default function AuthProvider({ children }) {
     setUser(null)
   }
 
-  const authFetch = (path, options = {}) =>
+  const authFetch = useCallback((path, options = {}) =>
     fetch(`${BASE}${path}`, {
       ...options,
       headers: {
@@ -34,7 +36,7 @@ export default function AuthProvider({ children }) {
         Authorization: `Bearer ${token}`,
         ...(options.headers || {})
       }
-    })
+    }), [token])
 
   return (
     <AuthContext.Provider value={{ token, user, setUser, login, logout, authFetch, BASE }}>

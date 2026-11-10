@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/user');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallbacksecretkey123';
+const JWT_SECRET = process.env.JWT_SECRET || 'freelancetracker_jwt_secret_key_2026';
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -89,4 +89,4 @@ const updateMe = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getMe, updateMe };
+module.exports = { register, login, getMe, updateMe, JWT_SECRET, generateToken };

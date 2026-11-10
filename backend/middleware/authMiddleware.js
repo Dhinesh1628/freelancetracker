@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key_change_in_production';
+const JWT_SECRET = process.env.JWT_SECRET || 'freelancetracker_jwt_secret_key_2026';
 
 const protect = (req, res, next) => {
   const authHeader = req.headers.authorization;

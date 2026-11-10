@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import usePermission from '../hooks/usePermission'
@@ -24,7 +24,7 @@ export default function ProjectDetail() {
 
   const perm = usePermission(project)
 
-  const loadProject = () => {
+  const loadProject = useCallback(() => {
     authFetch(`/projects/${id}`)
       .then(async r => {
         if (r.status === 403 || r.status === 404) { setForbidden(true); return null }
@@ -32,16 +32,19 @@ export default function ProjectDetail() {
       })
       .then(d => { if (d) setProject(d) })
       .finally(() => setLoading(false))
-  }
+  }, [authFetch, id])
 
-  const loadMembers = () => {
+  const loadMembers = useCallback(() => {
     authFetch(`/projects/${id}/members`)
       .then(r => r.json())
       .then(d => setMembers(d.members || []))
       .catch(() => {})
-  }
+  }, [authFetch, id])
 
-  useEffect(() => { loadProject(); loadMembers() }, [id])
+  useEffect(() => { 
+    loadProject()
+    loadMembers() 
+  }, [loadProject, loadMembers])
 
   const handleInvite = async () => {
     if (!inviteEmail.trim()) { setInviteError('Enter an email address.'); return }
@@ -59,120 +62,188 @@ export default function ProjectDetail() {
     finally { setInviteLoading(false) }
   }
 
-  const handleRoleChange = async (userId, role) => {
-    await authFetch(`/projects/${id}/members/${userId}`, { method: 'PUT', body: JSON.stringify({ role }) })
-    loadMembers()
+  const handleRoleChange = async (userId, newRole) => {
+    try {
+      const res = await authFetch(`/projects/${id}/members/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ role: newRole })
+      })
+      if (res.ok) loadMembers()
+    } catch {
+      // ignore
+    }
   }
 
   const handleRemove = async (userId) => {
     if (!window.confirm('Remove this member from the project?')) return
-    await authFetch(`/projects/${id}/members/${userId}`, { method: 'DELETE' })
-    loadMembers()
+    try {
+      const res = await authFetch(`/projects/${id}/members/${userId}`, { method: 'DELETE' })
+      if (res.ok) loadMembers()
+    } catch {
+      // ignore
+    }
   }
 
-  const handleDeleteProject = async () => {
-    if (!window.confirm('Delete this entire project? This action cannot be undone.')) return
-    await authFetch(`/projects/${id}`, { method: 'DELETE' })
-    navigate('/projects')
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete "${project.projectTitle}"? This cannot be undone.`)) return
+    try {
+      const res = await authFetch(`/projects/${id}`, { method: 'DELETE' })
+      if (res.ok) navigate('/projects')
+    } catch {
+      // ignore
+    }
   }
 
   if (forbidden) return <Navigate to="/access-denied" replace />
-  if (loading) return <div className="page animate-fade-in"><p style={{ color: 'var(--muted)' }}>Loading project data…</p></div>
-  if (!project) return null
+  if (loading)   return <div className="page"><p style={{color:'var(--muted)'}}>Loading project…</p></div>
+  if (!project)   return <div className="page"><p style={{color:'var(--muted)'}}>Project not found.</p></div>
+
+  const role = project.yourRole || 'viewer'
 
   return (
-    <div className="page animate-fade-in">
-      <button className="back-link" onClick={() => navigate('/projects')}>
+    <div className="page">
+      <button className="btn-back" onClick={() => navigate('/projects')}>
         <ArrowLeft size={16} /> Back to Projects
       </button>
 
-      <div className="page-header hero">
-        <div>
-          <h2>{project.projectTitle}</h2>
-          <p className="page-sub inline"><User size={14} /> Client: {project.clientName}</p>
-        </div>
-        <div className="header-actions">
-          {perm.canEdit && <button className="btn-secondary"><Edit3 size={16} /> Edit Project</button>}
-          {perm.canDelete && <button className="btn-danger" onClick={handleDeleteProject}><Trash2 size={16} /> Delete Project</button>}
-        </div>
-      </div>
-
-      <div className="detail-grid">
-        <div className="detail-card">
-          <div className="detail-label"><DollarSign size={14} /> Budget</div>
-          <div className="detail-val">${(project.budget || 0).toLocaleString()}</div>
-        </div>
-        <div className="detail-card">
-          <div className="detail-label"><Activity size={14} /> Status</div>
-          <div className="detail-val"><span className={`badge ${project.isCompleted ? 'completed' : 'active'}`}>{project.isCompleted ? 'Completed' : 'Active'}</span></div>
-        </div>
-        <div className="detail-card">
-          <div className="detail-label"><Shield size={14} /> Your Role</div>
-          <div className="detail-val"><span className={`role-badge ${perm.role}`}>{perm.role}</span></div>
-        </div>
-      </div>
-
-      {/* MANAGE MEMBERS */}
-      <div className="members-section">
-        <div className="section-header">
-          <h3><Users size={16} style={{ verticalAlign: 'middle', marginRight: '6px' }} /> Manage Members</h3>
+      {/* Main card */}
+      <div className="detail-card">
+        <div className="detail-header">
+          <div>
+            <div className="detail-client">{project.clientName}</div>
+            <h2 className="detail-title">{project.projectTitle}</h2>
+          </div>
+          <div className="detail-badges">
+            <span className={`badge ${project.isCompleted ? 'completed' : 'active'}`}>
+              {project.isCompleted ? 'Completed' : 'Active'}
+            </span>
+            <span className={`role-badge role-${role}`}>
+              <Shield size={12} /> {role.toUpperCase()}
+            </span>
+          </div>
         </div>
 
-        {perm.canManageMembers && (
-          <div className="invite-row">
-            {inviteError && <div className="form-error full"><X size={14} /> {inviteError}</div>}
-            <input
-              type="email"
-              placeholder="Invite by email address…"
-              value={inviteEmail}
-              onChange={e => setInviteEmail(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleInvite()}
-            />
-            <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}>
-              <option value="admin">Admin</option>
-              <option value="member">Member</option>
-              <option value="viewer">Viewer</option>
-            </select>
-            <button className="btn-primary" onClick={handleInvite} disabled={inviteLoading}>
-              <Plus size={16} /> {inviteLoading ? 'Inviting…' : 'Invite'}
+        <div className="detail-meta-grid">
+          <div className="d-meta-item">
+            <DollarSign className="d-meta-icon" size={24} />
+            <div>
+              <div className="d-meta-label">Budget</div>
+              <div className="d-meta-val">${(project.budget || 0).toLocaleString()}</div>
+            </div>
+          </div>
+          <div className="d-meta-item">
+            <Activity className="d-meta-icon" size={24} />
+            <div>
+              <div className="d-meta-label">Deadline</div>
+              <div className="d-meta-val">
+                {project.deadline ? new Date(project.deadline).toLocaleDateString() : 'None'}
+              </div>
+            </div>
+          </div>
+          <div className="d-meta-item">
+            <User className="d-meta-icon" size={24} />
+            <div>
+              <div className="d-meta-label">Your Role</div>
+              <div className="d-meta-val capitalize">{role}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="detail-actions">
+          {perm.canEditProject && (
+            <button className="btn-secondary" onClick={() => navigate('/projects')}>
+              <Edit3 size={15} /> Edit in Projects list
             </button>
+          )}
+          {perm.canDeleteProject && (
+            <button className="btn-danger" onClick={handleDelete}>
+              <Trash2 size={15} /> Delete Project
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Team / Members card */}
+      <div className="team-card">
+        <div className="team-header">
+          <div className="team-header-left">
+            <Users size={20} />
+            <h3>Project Team</h3>
+            <span className="member-count">{members.length}</span>
+          </div>
+        </div>
+
+        {/* Invite form — admin only */}
+        {perm.canManageMembers && (
+          <div className="invite-box">
+            <h4>Add Team Member</h4>
+            {inviteError && <div className="invite-error">{inviteError}</div>}
+            <div className="invite-row">
+              <div className="invite-input-wrap">
+                <Mail size={15} className="mail-icon" />
+                <input
+                  type="email"
+                  placeholder="colleague@example.com"
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleInvite()}
+                />
+              </div>
+              <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}>
+                {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <button className="btn-primary" onClick={handleInvite} disabled={inviteLoading}>
+                <Plus size={16} /> {inviteLoading ? 'Adding…' : 'Add'}
+              </button>
+            </div>
           </div>
         )}
 
-        <div className="members-list">
-          {members.map(m => (
-            <div className="member-row" key={m.userId}>
-              <div className="member-left">
-                <div className="m-init">{m.name?.[0]?.toUpperCase() || '?'}</div>
-                <div>
-                  <div className="m-name">{m.name}</div>
-                  <div className="m-email"><Mail size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }}/>{m.email}</div>
+        {/* Member list */}
+        <div className="member-list">
+          {members.map(m => {
+            const isOwner = String(m.userId) === String(project.userId)
+            return (
+              <div className="member-item" key={m.userId}>
+                <div className="m-left">
+                  <div className="m-avatar">{m.name?.[0]?.toUpperCase() || 'U'}</div>
+                  <div>
+                    <div className="m-name">
+                      {m.name} {isOwner && <span className="owner-tag">Owner</span>}
+                    </div>
+                    <div className="m-email">{m.email}</div>
+                  </div>
+                </div>
+
+                <div className="m-right">
+                  {/* Role picker or static badge */}
+                  {perm.canManageMembers && !isOwner ? (
+                    <select
+                      className="role-select"
+                      value={m.role}
+                      onChange={e => handleRoleChange(m.userId, e.target.value)}
+                    >
+                      {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  ) : (
+                    <span className={`role-pill role-${m.role}`}>{m.role}</span>
+                  )}
+
+                  {/* Remove button */}
+                  {perm.canManageMembers && !isOwner && (
+                    <button
+                      className="btn-icon danger"
+                      title="Remove member"
+                      onClick={() => handleRemove(m.userId)}
+                    >
+                      <X size={15} />
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="member-right">
-                {perm.canManageMembers && String(m.userId) !== String(project.userId) ? (
-                  <>
-                    <select value={m.role} onChange={e => handleRoleChange(m.userId, e.target.value)}>
-                      {ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
-                    </select>
-                    <button className="act-btn del" onClick={() => handleRemove(m.userId)} title="Remove Member">
-                      <Trash2 size={16} />
-                    </button>
-                  </>
-                ) : (
-                  <span className={`role-badge ${m.role}`}>
-                    {m.role}{String(m.userId) === String(project.userId) ? ' (Owner)' : ''}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-          {members.length === 0 && (
-            <div className="empty-note">
-              <Users size={32} opacity={0.3} />
-              No team members yet. Invite someone above.
-            </div>
-          )}
+            )
+          })}
         </div>
       </div>
     </div>

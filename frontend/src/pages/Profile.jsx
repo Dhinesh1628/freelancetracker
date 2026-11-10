@@ -11,18 +11,26 @@ export default function Profile() {
   const [error, setError]     = useState('')
 
   useEffect(() => {
+    let isMounted = true
     authFetch('/auth/me')
       .then(r => r.json())
       .then(d => {
+        if (!isMounted) return
         const u = d.user || d
         setForm({ name: u.name || '', email: u.email || '', password: '' })
       })
       .catch(() => {
+        if (!isMounted) return
         // fallback to cached user
         setForm({ name: user?.name || '', email: user?.email || '', password: '' })
       })
-      .finally(() => setLoading(false))
-  }, [])
+      .finally(() => {
+        if (isMounted) setLoading(false)
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [authFetch, user?.name, user?.email])
 
   const handleSave = async () => {
     if (!form.name.trim() || !form.email.trim()) { setError('Name and email are required.'); return }

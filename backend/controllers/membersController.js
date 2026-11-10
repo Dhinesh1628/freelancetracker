@@ -9,12 +9,14 @@ const getMembers = async (req, res) => {
 
     // always include creator as admin in the list, even if not in members[]
     const creator = await User.findById(project.userId).select('name email');
-    const list = project.members.map(m => ({
-      userId: m.userId._id,
-      name: m.userId.name,
-      email: m.userId.email,
-      role: m.role,
-    }));
+    const list = (project.members || [])
+      .filter(m => m && m.userId)
+      .map(m => ({
+        userId: m.userId._id,
+        name: m.userId.name,
+        email: m.userId.email,
+        role: m.role,
+      }));
 
     const hasCreator = list.some(m => String(m.userId) === String(project.userId));
     if (!hasCreator && creator) {

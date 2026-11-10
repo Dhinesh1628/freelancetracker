@@ -11,12 +11,20 @@ export default function Dashboard() {
   const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
+    let isMounted = true
     authFetch('/projects')
       .then(r => r.json())
-      .then(d => setProjects(Array.isArray(d) ? d : []))
+      .then(d => {
+        if (isMounted) setProjects(Array.isArray(d) ? d : [])
+      })
       .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+      .finally(() => {
+        if (isMounted) setLoading(false)
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [authFetch])
 
   const total     = projects.length
   const active    = projects.filter(p => !p.isCompleted).length

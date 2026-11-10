@@ -1,12 +1,20 @@
 const mongoose = require('mongoose');
 
-const connectDB = async () => {
+const connectDB = async (uri = process.env.MONGO_URI) => {
+  if (!uri) {
+    console.warn('⚠️ No MONGO_URI provided in environment variables.');
+    return false;
+  }
   try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log('✅ MongoDB Atlas connected');
+    await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
+    console.log('✅ MongoDB connected successfully');
+    return true;
   } catch (err) {
     console.error('❌ MongoDB connection failed:', err.message);
-    process.exit(1);
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+    return false;
   }
 };
 
